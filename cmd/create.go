@@ -235,8 +235,8 @@ func (cc *createCmd) createDeployment() error {
 
 	} else {
 		selection := &promptui.Select{
-			Label: "Select k8s Deployment Type",
-			Items: []string{"helm", "kustomize", "manifests"},
+			Label: "Select Container Deployment Type",
+			Items: []string{"kubernetes - helm", "kubernetes - kustomize", "kubernetes - manifests", "azure container app"},
 		}
 
 		_, deployType, err = selection.Run()
@@ -251,7 +251,7 @@ func (cc *createCmd) createDeployment() error {
 		}
 	}
 
-	log.Infof("--> Creating %s Kubernetes resources...\n", deployType)
+	log.Infof("--> Creating %s resources...\n", deployType)
 	return d.CopyDeploymentFiles(deployType, customInputs)
 }
 

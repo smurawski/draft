@@ -1,8 +1,9 @@
 package workflows
 
 import (
-	"github.com/Azure/draft/pkg/prompts"
 	"strings"
+
+	"github.com/Azure/draft/pkg/prompts"
 )
 
 type WorkflowConfig struct {
@@ -15,6 +16,8 @@ type WorkflowConfig struct {
 	ChartsPath         string
 	ChartsOverridePath string
 	KustomizePath      string
+	AcaEnviromentName  string
+	DeployToACA        bool
 }
 
 func (config *WorkflowConfig) ValidateAndFillConfig() {
@@ -30,8 +33,14 @@ func (config *WorkflowConfig) ValidateAndFillConfig() {
 		config.ResourceGroupName = prompts.GetInputFromPrompt("cluster resource group name")
 	}
 
-	if config.AksClusterName == "" {
-		config.AksClusterName = prompts.GetInputFromPrompt("AKS cluster name")
+	if config.DeployToACA {
+		if config.AcaEnviromentName == "" {
+			config.AcaEnviromentName = prompts.GetInputFromPrompt("ACA environment name")
+		}
+	} else {
+		if config.AksClusterName == "" {
+			config.AksClusterName = prompts.GetInputFromPrompt("AKS cluster name")
+		}
 	}
 
 	if config.BranchName == "" {

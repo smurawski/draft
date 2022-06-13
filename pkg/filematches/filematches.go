@@ -113,6 +113,9 @@ func FindDraftDeploymentFiles(dest string) (deploymentType string, err error) {
 	if _, err := os.Stat(dest + "/manifests"); !os.IsNotExist(err) {
 		return "manifests", nil
 	}
+	if _, err := os.Stat(dest + "/deploy"); !os.IsNotExist(err) {
+		return "azure container app", nil
+	}
 
 	return "", errors.New("no supported deployment files found")
 }

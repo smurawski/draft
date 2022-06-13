@@ -1,0 +1,118 @@
+# This workflow will build and push an application to a Azure Container Apps (ACA) environment when you push your code
+#
+# This workflow assumes you have already created an Azure Container Registry (ACR)
+# For instructions see:
+#   - https://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-portal
+#
+# To configure this workflow:
+#
+# 1. Set the following secrets in your repository (instructions for getting these can be found at https://docs.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-cli%2Clinux):
+#    - AZURE_CLIENT_ID
+#    - AZURE_TENANT_ID
+#    - AZURE_SUBSCRIPTION_ID
+#
+# 2. Set the following environment variables (or replace the values below):
+#    - AZURE_CONTAINER_REGISTRY (name of your container registry / ACR)
+#    - RESOURCE_GROUP (where your cluster is deployed)
+#    - ENVIROMENT_NAME (name for your ACA Environment)
+#    - CONTAINER_NAME (name of the container image you would like to push up to your ACR)
+#
+# For more information on GitHub Actions for Azure, refer to https://github.com/Azure/Actions
+# For more samples to get started with GitHub Action workflows to deploy to Azure, refer to https://github.com/Azure/actions-workflow-samples
+# For more options with the actions used below please refer to https://github.com/Azure/login
+
+name: Build and deploy an app to ACA
+
+on:
+  push:
+    branches:
+      - $default-branch
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: "your-azure-container-registry"
+  CONTAINER_NAME: "your-container-name"
+  RESOURCE_GROUP: "your-resource-group"
+  ENVIRONMENT_NAME: "your-azure-containerapps-environment-name"
+
+jobs:
+  buildImage:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+    # Checks out the repository this file is in
+    - uses: actions/checkout@v3
+
+    # Logs in with your Azure credentials
+    - name: Azure login
+      uses: azure/login@v1.4.3
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # Builds and pushes an image up to your Azure Container Registry
+    - name: Build and push image to ACR
+      run: |
+        az acr build --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} --registry ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.RESOURCE_GROUP }} .
+
+  deploy:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy-containerapp.outputs.url_output }}
+    needs: [buildImage]
+    steps:
+    # Checks out the repository this file is in
+    - uses: actions/checkout@v3
+
+    # Logs in with your Azure credentials
+    - name: Azure login
+      uses: azure/login@v1.4.3
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    # Retrieves the credentials for pulling images from your Azure Container Registry
+    - name: Get ACR credentials
+      run: |
+        az acr update -n ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.RESOURCE_GROUP }} --admin-enabled true
+        ACR_USERNAME=$(az acr credential show -g ${{ env.RESOURCE_GROUP }} -n ${{ env.AZURE_CONTAINER_REGISTRY }} --query username -o tsv)
+        ACR_PASSWORD=$(az acr credential show -g ${{ env.RESOURCE_GROUP }} -n ${{ env.AZURE_CONTAINER_REGISTRY }} --query passwords[0].value -o tsv)
+        echo "::add-mask::${ACR_USERNAME}"
+        echo "::set-output name=username::${ACR_USERNAME}"
+        echo "::add-mask::${ACR_PASSWORD}"
+        echo "::set-output name=password::${ACR_PASSWORD}"
+      id: get-acr-creds
+
+    # Deploys application based on given manifest file
+    - name: Deploy Azure Container App
+      run: |
+        URL=$(az deployment group create --resource-group ${{ env.RESOURCE_GROUP }} \
+          --template-file ./deploy/main.bicep \
+          --parameters registry_login_server=${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io \
+          --parameters registry_username=${{ steps.get-acr-creds.outputs.username }} \
+          --parameters registry_password=${{ steps.get-acr-creds.outputs.password }} \
+          --parameters app_image=${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} \
+          --parameters env_name=${{ env.ENVIRONMENT_NAME }} \
+          --query properties.outputs.url.value)
+        echo "::set-output name=url_output::https://$URL"
+      id: deploy-containerapp     
+
+  deploy_result:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    environment:
+      name: draft
+      url: ${{ needs.deploy.outputs.url }}
+    steps:
+    - name: URL
+      run: |
+        echo "${{ needs.deploy.outputs.url }}"

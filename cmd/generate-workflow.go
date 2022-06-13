@@ -13,9 +13,9 @@ func newGenerateWorkflowCmd() *cobra.Command {
 	dest := ""
 	var cmd = &cobra.Command{
 		Use:   "generate-workflow [flags]",
-		Short: "Generates a Github workflow for automatic build and deploy to AKS",
+		Short: "Generates a Github workflow for automatic build and deploy to AKS or Azure Container Apps",
 		Long: `This command will generate a Github workflow to build and deploy an application containerized 
-with draft on AKS. This command assumes the 'setup-gh' command has been run properly.`,
+with draft on AKS or Azure Container Apps. This command assumes the 'setup-gh' command has been run properly.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowConfig.ValidateAndFillConfig()
 
@@ -32,12 +32,14 @@ with draft on AKS. This command assumes the 'setup-gh' command has been run prop
 	}
 
 	f := cmd.Flags()
+	f.BoolVar(&workflowConfig.DeployToACA, "deploy-to-aca", false, "change deployment target to ACA from AKS")
 	f.StringVarP(&workflowConfig.AksClusterName, "cluster-name", "c", "", "specify the AKS cluster name")
 	f.StringVarP(&workflowConfig.AcrName, "registry-name", "r", "", "specify the Azure container registry name")
 	f.StringVar(&workflowConfig.ContainerName, "container-name", "", "specify the container image name")
 	f.StringVarP(&workflowConfig.ResourceGroupName, "resource-group", "g", "", "Specify the Azure resource group of your AKS cluster")
 	f.StringVarP(&dest, "destination", "d", ".", "specify the path to the project directory")
 	f.StringVarP(&workflowConfig.BranchName, "branch", "b", "", "specify the Github branch to automatically deploy from")
+	f.StringVarP(&workflowConfig.AcaEnviromentName, "containerapp-environment", "e", "", "specify the Azure Container App Environment to use")
 
 	return cmd
 }

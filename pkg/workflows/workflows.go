@@ -4,31 +4,33 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
+	"io/ioutil"
+	"os"
+
 	"github.com/Azure/draft/pkg/filematches"
 	"github.com/Azure/draft/pkg/osutil"
 	"github.com/Azure/draft/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
-	"io/fs"
-	"io/ioutil"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/kubernetes/scheme"
-	"os"
 )
 
 //go:generate cp -r ../../starterWorkflows ./workflows
 
 var (
 	//go:embed workflows
-	workflows     embed.FS
-	parentDirName = "workflows"
+	workflows          embed.FS
+	parentDirName      = "workflows"
+	workflowFilePrefix = "azure"
 
-	workflowFilePrefix   = "azure-kubernetes-service"
 	deployNameToWorkflow = map[string]*workflowType{
-		"helm":      {deployPath: "/charts", workflowFileSuffix: "-helm"},
-		"kustomize": {deployPath: "/base", workflowFileSuffix: "-kustomize"},
-		"manifests": {deployPath: "/manifests"},
+		"helm":                {deployPath: "/charts", workflowFileSuffix: "-kubernetes-service-helm"},
+		"kustomize":           {deployPath: "/base", workflowFileSuffix: "-kubernetes-service-kustomize"},
+		"manifests":           {deployPath: "/manifests", workflowFileSuffix: "-kubernetes-service"},
+		"azure container app": {deployPath: "/deploy", workflowFileSuffix: "-container-apps"},
 	}
 )
 
@@ -80,19 +82,23 @@ func replaceWorkflowVars(deployType string, config *WorkflowConfig, ghw *types.G
 	envMap["AZURE_CONTAINER_REGISTRY"] = config.AcrName
 	envMap["CONTAINER_NAME"] = config.ContainerName
 	envMap["RESOURCE_GROUP"] = config.ResourceGroupName
-	envMap["CLUSTER_NAME"] = config.AksClusterName
-	envMap["IMAGE_PULL_SECRET_NAME"] = config.AcrName + "secret"
+	if config.DeployToACA {
+		envMap["ENVIRONMENT_NAME"] = config.AcaEnviromentName
+	} else {
+		envMap["CLUSTER_NAME"] = config.AksClusterName
+		envMap["IMAGE_PULL_SECRET_NAME"] = config.AcrName + "secret"
 
-	switch deployType {
-	case "helm":
-		envMap["CHART_PATH"] = config.ChartsPath
-		envMap["CHART_OVERRIDE_PATH"] = config.ChartsOverridePath
+		switch deployType {
+		case "helm":
+			envMap["CHART_PATH"] = config.ChartsPath
+			envMap["CHART_OVERRIDE_PATH"] = config.ChartsOverridePath
 
-	case "manifests":
-		envMap["DEPLOYMENT_MANIFEST_PATH"] = config.ManifestsPath
+		case "manifests":
+			envMap["DEPLOYMENT_MANIFEST_PATH"] = config.ManifestsPath
 
-	case "kustomize":
-		envMap["KUSTOMIZE_PATH"] = config.KustomizePath
+		case "kustomize":
+			envMap["KUSTOMIZE_PATH"] = config.KustomizePath
+		}
 	}
 
 	ghw.Env = envMap

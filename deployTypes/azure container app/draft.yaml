@@ -1,0 +1,5 @@
+variables:
+  - name: "PORT"
+    description: "the port exposed in the application"
+  - name: "APP_NAME"
+    description: "the name of the application"

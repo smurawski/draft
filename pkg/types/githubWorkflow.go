@@ -19,7 +19,8 @@ type push struct {
 
 type job struct {
 	Permissions map[string]string
-	RunsOn      string `yaml:"runs-on"`
-	Needs	    []string `yaml:"needs,omitempty"`
+	RunsOn      string   `yaml:"runs-on"`
+	Needs       []string `yaml:"needs,omitempty"`
 	Steps       []map[string]interface{}
+	Outputs     map[string]string
 }
